@@ -5,7 +5,10 @@ using System.Windows.Forms;
 using System.Diagnostics;
 using System.Timers;
 using CSCore.CoreAudioAPI;
-
+using System.Media;
+using System.Collections.Generic;
+using AutoHotkey.Interop;
+using System.Threading;
 
 namespace Dota2AA
 {
@@ -23,14 +26,21 @@ namespace Dota2AA
         [DllImport("user32.dll", SetLastError = true)]
         static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
 
+        public const int SW_SHOWNORMAL = 1;
+        public const int SW_SHOWMINIMIZED = 2;
+        public const int SW_SHOWMAXIMIZED = 3;
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+
         [DllImport("User32.dll")]
         static extern int SetForegroundWindow(IntPtr point);
 
-        
+
         public Form1()
         {
             InitializeComponent();
-            
+
             //Safe Windowhandle
             localhWnd = Handle;
 
@@ -45,11 +55,11 @@ namespace Dota2AA
             delayTimer.Elapsed += (s, e) => { ((System.Timers.Timer)s).Enabled = false; }; //Stop the delay timer (Only exec once)
             delayTimer.Enabled = false;
 
-
         }
-        
 
-        private static bool checkForSoundPeak() {
+
+        private static bool checkForSoundPeak()
+        {
 
 
             using (var sessionManager = GetDefaultAudioSessionManager2(DataFlow.Render))
@@ -61,9 +71,7 @@ namespace Dota2AA
                         using (var session2 = session.QueryInterface<AudioSessionControl2>())
                         using (var audioMeterInformation = session.QueryInterface<AudioMeterInformation>())
                         {
-
                             //See if Dota emits sound (If there are two Windows containing Dota in the title sound of either one will trigger!!
-
                             if (session2.Process.MainWindowTitle.Contains("Dota") && (audioMeterInformation.GetPeakValue() > 0.015))
                             {
                                 return true;
@@ -81,47 +89,41 @@ namespace Dota2AA
             {
                 using (var device = enumerator.GetDefaultAudioEndpoint(dataFlow, Role.Multimedia))
                 {
-                    
+
                     var sessionManager = AudioSessionManager2.FromMMDevice(device);
                     return sessionManager;
                 }
             }
         }
 
-
-
-        private void accept_match()
+        //Prevent user interference 
+        private void HideDota()
         {
-            //Disable Scanning
-            checkTimer.Enabled = false;
-            
-            //Execute the Keystroke Simulator to submit enter
-            String appStartPath = System.IO.Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
-            var programPath = System.IO.Path.Combine(appStartPath, "keystroke_simulator.exe");
-            Debug.WriteLine(programPath);
-            ProcessStartInfo kssi = new ProcessStartInfo(programPath);
-            Process kss = Process.Start(kssi);
-            kss.WaitForExit(3000);
-
-            Debug.WriteLine("Keystokes sent");
-            SetForegroundWindow(localhWnd);
-
-            //Restart scanning after 5 seconds in case of declination
-            delayTimer.Enabled = true;  
+        IntPtr hWnd = FindWindow(null, "dota 2");
+        if (!hWnd.Equals(IntPtr.Zero))
+        {
+        // SW_SHOWMAXIMIZED to maximize the window
+        // SW_SHOWMINIMIZED to minimize the window
+        // SW_SHOWNORMAL to make the window be normal size
+        ShowWindowAsync(hWnd, SW_SHOWMINIMIZED);
         }
-
-
+    }
 
         private void btn_toggleScan_Click(object sender, EventArgs e)
-        {
-            //Search for the Dota 2 Process
+           {            
             Process p = Process.GetProcessesByName("dota2").FirstOrDefault();
             if (p == null)
             {
                 lbl_status.Text = "Dota 2 not found";
                 return;
             };
-           
+
+            Process[] q = Process.GetProcessesByName("dota2");
+            if (q.Length == 0)
+                MessageBox.Show("Dota 2 not running");
+            else
+                HideDota();
+
 
             //Implement Toggle behaviour of the button
             scanning = !scanning;
@@ -129,36 +131,37 @@ namespace Dota2AA
             delayTimer.Enabled = false;
             string btntxt = "Start";
 
-            if(scanning){
+            if (scanning)
+            {
 
                 btntxt = "Stop";
-
             }
 
             btn_toggleScan.Text = btntxt;
             string lbltxt = "Disabled";
 
-            if (scanning) 
-            { 
+            if (scanning)
+            {
                 lbltxt = "Scanning";
             }
 
             lbl_status.Text = lbltxt;
         }
-
+        bool matchfound = false;
+        
         private void OnTimedEvent(object source, ElapsedEventArgs e)
         {
+            var script = AutoHotkeyEngine.Instance;
             if (checkForSoundPeak())
             {
-                accept_match();
+                script.ExecRaw("ControlSend,,{Enter}, Dota 2");
+                matchfound = true;
             }
-
         }
 
         private void button1_Click(object sender, EventArgs e)
         {
 
-            
         }
 
         private void Label3_Click(object sender, EventArgs e)
@@ -192,6 +195,109 @@ namespace Dota2AA
         }
 
         private void Label2_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void CheckBox2_CheckedChanged(object sender, EventArgs e)
+        {
+            ToolTip tip = new ToolTip();
+            tip.ShowAlways = true;
+            tip.SetToolTip(btn_toggleScan, "If you override this, you could miss the match.");
+
+            CheckBox b = (CheckBox)sender;
+            scanning = false;
+            if (b.Checked)
+            {
+                scanning = true;
+            }
+            else
+            {
+                DialogResult dr = MessageBox.Show("Are you sure?",
+                      "Forcing this can get banned for 5 min if failed to accept.", MessageBoxButtons.YesNo);
+                switch (dr)
+                {
+                    case DialogResult.Yes:
+                        scanning = false;
+                        break;
+                    case DialogResult.No:
+                        scanning = true;
+                        this.checkBox2.Checked = true;
+                        break;
+                }
+            }
+        }
+
+        private void CheckBox3_CheckedChanged(object sender, EventArgs e)
+        {
+            CheckBox d = (CheckBox)sender;
+            if (d.Checked && matchfound && checkForSoundPeak())
+            {
+                SystemSounds.Beep.Play();
+            }
+        }
+
+        private void Label4_Click(object sender, EventArgs e)
+        {
+
+        }
+
+        private void ComboBox1_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
+        }
+        public string InLock = "  Locked n Loaded";
+        private void Button1_Click_1(object sender, EventArgs e)
+        {  try
+            {//To Finish
+             // Read the value from the combobox1
+                MessageBox.Show("This feature is not ready");
+                KeyValuePair<string, string> kvp = (KeyValuePair<string, string>)comboBox1.SelectedItem;
+                string key = kvp.Key.ToString();
+                string value = kvp.Value.ToString();
+                //lock on label
+                //comboBox1.Text=key+""+value;
+                comboBox1.Text = key + InLock;
+            }
+            catch { }
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            ToolTip toolTip1 = new ToolTip();
+            toolTip1.AutoPopDelay = 5000;
+            toolTip1.InitialDelay = 1000;
+            toolTip1.ReshowDelay = 500;
+            toolTip1.ShowAlways = true;
+
+            // Set up the ToolTip text for the Button and Checkbox.
+            if (lbl_status.Text == "Disabled")
+            {
+                toolTip1.SetToolTip(lbl_status, "Nothing is happening.");
+            }
+            else if (lbl_status.Text == "Scanning")
+            {
+                toolTip1.SetToolTip(lbl_status, "Waiting for a match");
+            }
+
+            toolTip1.SetToolTip(button1, "Incomplete.");
+            toolTip1.SetToolTip(btn_toggleScan, "Start the match listener, safe to stop this when a match is found.");
+            toolTip1.SetToolTip(checkBox1, "Keep this window above all.");
+           /*
+           comboBox1.Items.Add(new KeyValuePair<string, string>("Dazzle","0"));
+           comboBox1.Items.Add(new KeyValuePair<string, string>("Mars", "1"));
+           comboBox1.Items.Add(new KeyValuePair<string, string>("Bristleback", "2"));
+           all more heroes
+           comboBox1.DisplayMember = "key";
+           */
+        }
+
+        private void BackgroundWorker1_DoWork(object sender, System.ComponentModel.DoWorkEventArgs e)
+        {
+
+        }
+
+        private void Label3_Click_1(object sender, EventArgs e)
         {
 
         }
