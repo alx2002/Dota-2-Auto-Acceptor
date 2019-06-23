@@ -61,6 +61,7 @@
             this.lbl_status.Size = new System.Drawing.Size(83, 24);
             this.lbl_status.TabIndex = 3;
             this.lbl_status.Text = "Disabled";
+            this.lbl_status.TextChanged += new System.EventHandler(this.Lbl_status_TextChanged);
             this.lbl_status.Click += new System.EventHandler(this.Lbl_status_Click);
             // 
             // checkBox1

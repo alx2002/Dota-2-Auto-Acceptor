@@ -8,7 +8,6 @@ using CSCore.CoreAudioAPI;
 using System.Media;
 using System.Collections.Generic;
 using AutoHotkey.Interop;
-using System.Threading;
 
 namespace Dota2AA
 {
@@ -60,8 +59,6 @@ namespace Dota2AA
 
         private static bool checkForSoundPeak()
         {
-
-
             using (var sessionManager = GetDefaultAudioSessionManager2(DataFlow.Render))
             {
                 using (var sessionEnum = sessionManager.GetSessionEnumerator())
@@ -99,18 +96,15 @@ namespace Dota2AA
         //Prevent user interference 
         private void HideDota()
         {
-        IntPtr hWnd = FindWindow(null, "dota 2");
-        if (!hWnd.Equals(IntPtr.Zero))
-        {
-        // SW_SHOWMAXIMIZED to maximize the window
-        // SW_SHOWMINIMIZED to minimize the window
-        // SW_SHOWNORMAL to make the window be normal size
-        ShowWindowAsync(hWnd, SW_SHOWMINIMIZED);
+            IntPtr hWnd = FindWindow(null, "dota 2");
+            if (!hWnd.Equals(IntPtr.Zero))
+            {
+                ShowWindowAsync(hWnd, SW_SHOWMINIMIZED);
+            }
         }
-    }
-
         private void btn_toggleScan_Click(object sender, EventArgs e)
-           {            
+           {
+
             Process p = Process.GetProcessesByName("dota2").FirstOrDefault();
             if (p == null)
             {
@@ -122,10 +116,10 @@ namespace Dota2AA
             if (q.Length == 0)
                 MessageBox.Show("Dota 2 not running");
             else
+            {
                 HideDota();
+            }
 
-
-            //Implement Toggle behaviour of the button
             scanning = !scanning;
             checkTimer.Enabled = scanning;
             delayTimer.Enabled = false;
@@ -133,7 +127,6 @@ namespace Dota2AA
 
             if (scanning)
             {
-
                 btntxt = "Stop";
             }
 
@@ -154,7 +147,12 @@ namespace Dota2AA
             var script = AutoHotkeyEngine.Instance;
             if (checkForSoundPeak())
             {
+                checkTimer.Enabled = false;
+
                 script.ExecRaw("ControlSend,,{Enter}, Dota 2");
+
+                SetForegroundWindow(localhWnd);
+                delayTimer.Enabled = true;
                 matchfound = true;
             }
         }
@@ -270,16 +268,6 @@ namespace Dota2AA
             toolTip1.ReshowDelay = 500;
             toolTip1.ShowAlways = true;
 
-            // Set up the ToolTip text for the Button and Checkbox.
-            if (lbl_status.Text == "Disabled")
-            {
-                toolTip1.SetToolTip(lbl_status, "Nothing is happening.");
-            }
-            else if (lbl_status.Text == "Scanning")
-            {
-                toolTip1.SetToolTip(lbl_status, "Waiting for a match");
-            }
-
             toolTip1.SetToolTip(button1, "Incomplete.");
             toolTip1.SetToolTip(btn_toggleScan, "Start the match listener, safe to stop this when a match is found.");
             toolTip1.SetToolTip(checkBox1, "Keep this window above all.");
@@ -300,6 +288,24 @@ namespace Dota2AA
         private void Label3_Click_1(object sender, EventArgs e)
         {
 
+        }
+
+        private void Lbl_status_TextChanged(object sender, EventArgs e)
+        {
+            ToolTip toolTip1 = new ToolTip();
+            toolTip1.AutoPopDelay = 5000;
+            toolTip1.InitialDelay = 1000;
+            toolTip1.ReshowDelay = 500;
+            toolTip1.ShowAlways = true;
+
+            if (lbl_status.Text == "Disabled")
+            {
+                toolTip1.SetToolTip(lbl_status, "Nothing is happening.");
+            }
+            if (lbl_status.Text == "Scanning")
+            {
+                toolTip1.SetToolTip(lbl_status, "Waiting for a accept button, you can continue to be AFK!");
+            }
         }
     }
 }
